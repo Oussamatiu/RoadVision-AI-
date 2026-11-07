@@ -40,7 +40,7 @@ All paths are resolved from the repository root. Launch the notebook with its wo
 
 To reuse prepared data after a kernel restart, rerun setup and imports, load the dataset configuration/class names, skip the cleaning and split-copy cells, then run YOLOv9 setup and the training-configuration cell. That cell rebuilds `DATA_YAML` using the existing split directories. Each training run gets a unique directory under `reports/`.
 
-The notebook retains the supplied cleaning policy, including removing empty-label pairs from the clean copy. It preserves the source validation split and reserves approximately 15% of training candidates for testing with seed 42. Expected counts are calculated rather than fixed at the original dataset sizes. The final plots show training/validation results; held-out test evaluation is not performed.
+The notebook retains the supplied cleaning policy, including removing empty-label pairs from the clean copy. It preserves the source validation split and reserves approximately 15% of training candidates for testing with seed 42. Expected counts are calculated rather than fixed at the original dataset sizes. The training plots show training/validation results. The final notebook sections separately evaluate the selected checkpoint on the held-out test split and save its metrics log and plots.
 
 ## Validation
 
@@ -48,7 +48,7 @@ Notebook cell syntax, project-root discovery, project-relative paths, and constr
 
 ## Streamlit: use the trained model
 
-1. Complete notebook training and run the final **Export your trained model for Streamlit** cell. This copies your trained checkpoint to `models/best.pt`. The app also finds checkpoints in `reports/*/weights/best.pt`.
+1. Complete training, then run notebook sections **46–54** to verify the run, save the model bundle, evaluate on the test split, check a prediction, package the model, and install Streamlit. Section 50 copies the selected checkpoint to `models/best.pt`. The app also finds checkpoints in `reports/*/weights/best.pt`.
 2. In a terminal, activate the same Python environment used by the notebook and run from the project root:
 
    ```bash
@@ -64,3 +64,18 @@ On a different machine, copy `models/best.pt`, clone YOLOv9 into `third_party/yo
 Inference uses upstream `detect_dual.py` in a separate process for each request. The model reloads each time, so this simple version is intended for individual images rather than real-time video. Uploaded images and inference files are processed in a temporary directory and removed afterward; results remain in the browser session for downloading. Large images are limited to 20 MB.
 
 The app's UI and inference wrapper can be checked without model weights; real vehicle predictions require a completed training checkpoint. No trained weights are committed to GitHub.
+
+## Saved-model workflow in the notebook
+
+YOLOv9 saves `best.pt` and `last.pt` automatically during training. The notebook now checks that both exist and are nonempty, then provides these explicit handoff steps:
+
+- **Select a saved run:** after restarting the kernel, rerun the project setup cell and section 46. Set `RUN_TO_USE` when multiple runs exist. The dataset configuration is recovered from the run record or upstream `opt.yaml`.
+- **Save a versioned model bundle:** `models/<run_name>/` contains both checkpoints, `classes.json`, `training_data.yaml`, training options/results where available, `environment.txt`, and `model_info.json` with checkpoint SHA-256 values and the YOLOv9 commit. `models/best.pt` selects the model for Streamlit.
+- **Evaluate:** section 51 runs `val_dual.py --task test` against the exported checkpoint and saves `test_metrics.log` plus plots. No evaluation score is claimed until this cell completes successfully.
+- **Check prediction:** section 52 uses the same `src.inference.detect_image` helper as Streamlit, saving a sample annotated image and detection labels.
+- **Download:** section 53 creates `models/<run_name>_model.zip`. Download it through the Jupyter file browser. It includes the model and metadata, not the dataset, environment installation, or YOLOv9 source.
+- **Launch:** section 54 installs the Streamlit dependencies and prints a command using the notebook's Python interpreter.
+
+On another machine, extract the bundle, copy `best.pt` to the project's `models/` directory, use the recorded YOLOv9 commit, and install compatible dependencies. Archived dataset paths are references to the training machine and must be updated if evaluating on another machine. `last.pt` preserves the final checkpoint; upstream checkpoint stripping means it is not guaranteed to contain optimizer state for exact training resumption.
+
+Export/recovery/archive tests use fixture bytes rather than a real model. Run `python -m unittest discover -s tests` to check this handoff and the inference wrapper. GPU training, test evaluation, and real-model prediction still require execution in your Vast.ai environment.
