@@ -5,7 +5,9 @@ Vehicle detection with YOLOv9. The original dataset exploration, cleaning, split
 ## Project structure
 
 ```text
-notebooks/roadvision.ipynb  # Run this notebook
+app.py                    # Streamlit image detection app
+requirements-streamlit.txt # Streamlit dependencies
+notebooks/roadvision.ipynb  # Train and export your model
 src/dataset.py             # Optional helper; the notebook does not import it
 data/                     # Kaggle cache, cleaned dataset, prepared splits
 models/yolov9-c.pt         # Downloaded pretrained weights
@@ -43,3 +45,22 @@ The notebook retains the supplied cleaning policy, including removing empty-labe
 ## Validation
 
 Notebook cell syntax, project-root discovery, project-relative paths, and construction of the GPU training command were checked without downloading the dataset or training. End-to-end training has not been run on Vast.ai. The template supplies PyTorch/CUDA; YOLOv9's upstream dependency and checkpoint compatibility depends on that runtime.
+
+## Streamlit: use the trained model
+
+1. Complete notebook training and run the final **Export your trained model for Streamlit** cell. This copies your trained checkpoint to `models/best.pt`. The app also finds checkpoints in `reports/*/weights/best.pt`.
+2. In a terminal, activate the same Python environment used by the notebook and run from the project root:
+
+   ```bash
+   python -m pip install -r requirements-streamlit.txt
+   python -m streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+   ```
+
+3. For Vast.ai access, configure a port mapping for container TCP port **8501** when creating the instance. Open `http://<instance-public-IP>:<mapped-external-port>` using the actual mapping shown by Vast.ai; the external port may differ from 8501. Alternatively, use an SSH tunnel through the instance's SSH connection and bind Streamlit to `127.0.0.1`. Keep access private if you do not intend to share the app; Streamlit itself does not add login authentication.
+4. Select the trained model, upload a JPG/PNG/WebP image, choose confidence, and click **Detect vehicles**. Download the annotated image or the YOLO-format detection text.
+
+On a different machine, copy `models/best.pt`, clone YOLOv9 into `third_party/yolov9`, and install its requirements plus `requirements-streamlit.txt` in a compatible PyTorch environment. Use checkpoints you trained or trust. This app supports the original dual-head checkpoints from `train_dual.py`, not converted or arbitrary YOLO models. It does not use the COCO pretrained weights as a substitute for your trained vehicle model.
+
+Inference uses upstream `detect_dual.py` in a separate process for each request. The model reloads each time, so this simple version is intended for individual images rather than real-time video. Uploaded images and inference files are processed in a temporary directory and removed afterward; results remain in the browser session for downloading. Large images are limited to 20 MB.
+
+The app's UI and inference wrapper can be checked without model weights; real vehicle predictions require a completed training checkpoint. No trained weights are committed to GitHub.
